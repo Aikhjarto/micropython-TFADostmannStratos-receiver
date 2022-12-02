@@ -1,0 +1,15 @@
+[submodule "3rdParty/pycc1101"]
+	path = 3rdParty/pycc1101
+	url = https://github.com/eliteboard/pycc1101.git
+[submodule "3rdParty/micropython-font-to-py"]
+	path = 3rdParty/micropython-font-to-py
+	url = https://github.com/peterhinch/micropython-font-to-py.git
+[submodule "3rdParty/micropython-lib"]
+	path = 3rdParty/micropython-lib
+	url = https://github.com/micropython/micropython-lib.git
+[submodule "3rdParty/crc8"]
+	path = 3rdParty/crc8
+	url = https://github.com/niccokunzmann/crc8.git
+[submodule "3rdParty/crc"]
+	path = 3rdParty/crc
+	url = https://gist.github.com/6c787a3bc26fea6e842dfb8296ebd630.git

@@ -1,0 +1,6 @@
+*.mpy
+lib/Noto*
+__pycache__
+.idea
+.vscode
+venv
