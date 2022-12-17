@@ -13,3 +13,6 @@
 [submodule "3rdParty/crc"]
 	path = 3rdParty/crc
 	url = https://gist.github.com/6c787a3bc26fea6e842dfb8296ebd630.git
+[submodule "3rdParty/crccheck"]
+	path = 3rdParty/crccheck
+	url = https://github.com/MartinScharrer/crccheck.git
