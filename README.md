@@ -31,5 +31,5 @@ mpy-cross 3rdParty/crc/crc.py -o lib/crc.mpy
 Upload everything to microcontroller
 ```
 find lib -name "*.mpy" -exec ampy -p /dev/ttyUSB0 put {} {} \;
-find src -name "*TFA*.py" -print0 | xargs -0 -L1 sh -c 'echo ampy -p /dev/ttyUSB0 put "$0" "$(basename "$0")"'
+find src -name "*TFA*.py" -print0 | xargs -0 -L1 sh -c 'ampy -p /dev/ttyUSB0 put "$0" "$(basename "$0")"'
 ```
