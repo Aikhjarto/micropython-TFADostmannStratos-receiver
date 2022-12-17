@@ -108,7 +108,7 @@ class TFADecode:
         self.whid = self._bits[7:11]
         self.ident = self._bits[11:19]
         self.flag = self._bits[19]
-        print(f'Metadata:flatg {self.flag}, whid: f{self.whid}, ident: {bits2int(self.ident)}')
+        print(f'Metadata:flag {self.flag}, whid: {self.whid}, ident: {bits2int(self.ident)}')
             
         self._crc.update(self._bytes)
         
