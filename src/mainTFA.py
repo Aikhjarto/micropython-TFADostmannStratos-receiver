@@ -1,6 +1,6 @@
 from boot import *  # get settings
 import time
-from machine import Pin, SoftSPI
+from machine import Pin, SoftSPI, SoftI2C
 import machine
 from pycc1101 import TICC1101
 import micropython
@@ -9,6 +9,9 @@ import json
 import gc
 import _thread
 
+
+pPower = Pin(26,Pin.OUT)
+pPower.on()
 
 # SPI for CC1101
 pCS = Pin(5, Pin.OUT)
@@ -165,20 +168,24 @@ def process(*args):
             sta_if.active(False)
             sta_if.active(True)
                 
+    cc1101_rssi = CC1101.getRSSIdBm()
+    
     if len(data_bin) >= 79:
         tfa.update(data_bin)
         if wifi_rssi and client:
-            cc1101_rssi = CC1101.getRSSIdBm()
             # schedule display update (should run in background in case mqtt connection throws an exception)
             micropython.schedule(display_update_cb, (tfa.data_dict, tfa._rtc.datetime(), wifi_rssi, cc1101_rssi))
             
-            client.connect()
-            client.publish('tfa/tele', json.dumps({'wifi_rssi': wifi_rssi,
+            json_data = json.dumps({'wifi_rssi': wifi_rssi,
                                                    'cc1101_rssi': cc1101_rssi,
                                                    'raw_int': str(tfa.data_raw),
                                                    'isweather': tfa.is_weather_data(),
                                                    'istime': tfa.is_time_data(),
-                                                   }))
+                                                   })
+            print(json_data)
+            
+            client.connect()
+            client.publish('tfa/tele', json_data)
             if tfa.is_weather_data():
                 client.publish('tfa/weather', tfa.data_json)
             elif tfa.is_time_data():
@@ -189,11 +196,14 @@ def process(*args):
         # TODO: adjust baudrate
         if wifi_rssi and client:
             client.connect()
-            client.publish('tfa/tele', json.dumps({'wifi_rssi': sta_if.status('rssi'),
-                                                   'cc1101_rssi': CC1101.getRSSIdBm(),
+            json_data = json.dumps({'wifi_rssi': sta_if.status('rssi'),
+                                                   'cc1101_rssi': cc1101_rssi,
                                                    'raw': f'{data_bytes_bin}',
                                                    'maxdecode': len(data_bin),
-                                                   }))
+                                                   }) 
+            print(json_data)
+            
+            client.publish('tfa/tele', json_data)
             client.disconnect()
 
     data_available = 0
@@ -216,5 +226,3 @@ def watchdog(*args):
         time.sleep(30)
         
 watchdog_thread = _thread.start_new_thread(watchdog, ())
-
-
