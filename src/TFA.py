@@ -138,7 +138,6 @@ class TFADecode:
             print(self.dfc_tuple)
         elif self.is_weather_data():
             # got weather-data
-            self.data_dict['localtime'] = time.localtime()[0:6]  # (year, month, mday, hour, minute, second)
             self.data_dict['temperature'] = bits2int(bits[21:31])*0.1 - 40
             self.data_dict['humidity'] = bits2int(bits[31:39])
             self.data_dict['windspeed'] = bits2int(bits[39:47])/3

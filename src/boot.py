@@ -10,3 +10,4 @@ WIFI_PASSWORD = const('WIFI_PASSWORD')
 
 MQTT_CLIENTID = const('TFA')
 MQTT_SERVER = const('mqttbroker.private.lan')
+MQTT_TOPIC = const('tfa')

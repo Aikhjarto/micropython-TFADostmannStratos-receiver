@@ -167,45 +167,58 @@ def process(*args):
             # reset WiFi
             sta_if.active(False)
             sta_if.active(True)
-                
+    
+    # check CC1101 link quality
     cc1101_rssi = CC1101.getRSSIdBm()
     
+    # prepare mqtt session
+    if wifi_rssi and client:
+        client.connect()
+        
     if len(data_bin) >= 79:
+        
+        # decode data
         tfa.update(data_bin)
+        
+        
+        RESULT_json = json.dumps({'raw_int': str(tfa.data_raw),
+                                  'isweather': tfa.is_weather_data(),
+                                  'istime': tfa.is_time_data(),
+                       })
+                         
+        
+        # schedule display update (should run in background in case mqtt connection throws an exception)
+        micropython.schedule(display_update_cb, (tfa.data_dict, tfa._rtc.datetime(), wifi_rssi, cc1101_rssi))
+        
         if wifi_rssi and client:
-            # schedule display update (should run in background in case mqtt connection throws an exception)
-            micropython.schedule(display_update_cb, (tfa.data_dict, tfa._rtc.datetime(), wifi_rssi, cc1101_rssi))
-            
-            json_data = json.dumps({'wifi_rssi': wifi_rssi,
-                                                   'cc1101_rssi': cc1101_rssi,
-                                                   'raw_int': str(tfa.data_raw),
-                                                   'isweather': tfa.is_weather_data(),
-                                                   'istime': tfa.is_time_data(),
-                                                   })
-            print(json_data)
-            
-            client.connect()
-            client.publish('tfa/tele', json_data)
             if tfa.is_weather_data():
-                client.publish('tfa/weather', tfa.data_json)
+                client.publish(f'tele/{MQTT_TOPIC}/SENSOR', tfa.data_json)
             elif tfa.is_time_data():
-                client.publish('tfa/time', str(tfa.dfc_tuple))
-            client.disconnect()
+                client.publish(f'tele/{MQTT_TOPIC}/DFC', str(tfa.dfc_tuple))
         
     else:
         # TODO: adjust baudrate
-        if wifi_rssi and client:
-            client.connect()
-            json_data = json.dumps({'wifi_rssi': sta_if.status('rssi'),
-                                                   'cc1101_rssi': cc1101_rssi,
-                                                   'raw': f'{data_bytes_bin}',
-                                                   'maxdecode': len(data_bin),
-                                                   }) 
-            print(json_data)
-            
-            client.publish('tfa/tele', json_data)
-            client.disconnect()
+        RESULT_json = json.dumps({'raw': f'{data_bytes_bin}',
+                                  'maxdecode': len(data_bin),
+                                 })
 
+    print(f'stat/{MQTT_TOPIC}/RESULT', RESULT_json)
+    
+    if wifi_rssi and client:
+        STATE_json = json.dumps({'Time': '{0}-{1:2d}-{2:02d}T{3:02d}:{4:02d}:{5:02d}'.format(*time.localtime()),
+                         "Wifi":{"SSId": WIFI_ESSID,
+                                 "Channel":sta_if.config('channel'),
+                                 "RSSI":wifi_rssi},
+                         'TFA':{"RSSI": cc1101_rssi},
+                        })
+        
+        print(f'tele/{MQTT_TOPIC}/STATE', STATE_json)        
+        client.publish(f'tele/{MQTT_TOPIC}/STATE', STATE_json)
+        
+        client.publish(f'stat/{MQTT_TOPIC}/RESULT', RESULT_json)
+        
+        client.disconnect()
+        
     data_available = 0
 
     gc.collect() # free memory after processing
