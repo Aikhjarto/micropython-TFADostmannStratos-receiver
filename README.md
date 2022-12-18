@@ -12,13 +12,9 @@ pip install --user -r requirements.txt
 Precompile libraries
 ```sh
 mkdir -p lib
-3rdParty/micropython-font-to-py/font_to_py.py -x /usr/share/fonts/truetype/NotoSans-Bold.ttf        15 lib/NotoSansBold15.py
 3rdParty/micropython-font-to-py/font_to_py.py -x /usr/share/fonts/truetype/NotoSans-Condensed.ttf   15 lib/NotoSansCondensed15.py
-3rdParty/micropython-font-to-py/font_to_py.py -x /usr/share/fonts/truetype/NotoSans-Condensed.ttf   20 lib/NotoSansCondensed20.py
-3rdParty/micropython-font-to-py/font_to_py.py -x /usr/share/fonts/truetype/NotoSans-Condensed.ttf   28 lib/NotoSansCondensed28.py
-3rdParty/micropython-font-to-py/font_to_py.py -x /usr/share/fonts/truetype/NotoSans-Regular.ttf     15 lib/NotoSansRegular15.py
 
-find lib -name "Noto*.py" -exec mpy-cross {} \;
+find lib -name "*.py" -exec mpy-cross {} \;
 
 mpy-cross 3rdParty/pycc1101/pycc1101/pycc1101.py -o lib/pycc1101.mpy
 mpy-cross 3rdParty/micropython-font-to-py/writer/writer.py -o lib/writer.mpy
@@ -29,7 +25,7 @@ mpy-cross 3rdParty/crc/crc.py -o lib/crc.mpy
 ```
 
 Upload everything to microcontroller
-```
+```sh
 find lib -name "*.mpy" -exec ampy -p /dev/ttyUSB0 put {} {} \;
 find src -name "*TFA*.py" -print0 | xargs -0 -L1 sh -c 'ampy -p /dev/ttyUSB0 put "$0" "$(basename "$0")"'
 ```
