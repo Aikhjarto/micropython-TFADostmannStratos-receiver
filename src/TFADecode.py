@@ -65,7 +65,6 @@ class TFADecode:
                           'windspeed': None,
                           'windgust': None,
                           'rain': None,
-                          'localtime': None
                           }
 
     @property

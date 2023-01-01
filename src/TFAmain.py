@@ -2,6 +2,7 @@ from TFADisplay import TFADisplay
 from boot import *  # get settings
 import time
 from machine import Pin, SoftSPI, SoftI2C
+import machine
 from pycc1101 import TICC1101
 import micropython
 import TFADecode
@@ -26,6 +27,9 @@ pMISO = Pin(23, Pin.IN)
 # I2C
 pSDA = Pin(16)
 pSCL = Pin(17)
+
+
+pButton = Pin(25, Pin.IN, Pin.PULL_UP)
 
 
 # CC1101
@@ -66,9 +70,23 @@ CC1101_settings_dict = {"RSSI": -300,
 
 
 # data decoder and display
+tfa = TFADecode.TFADecode()
 i2c = SoftI2C(pSDA, pSCL)
 tfa_display = TFADisplay(128, 64, i2c)
-tfa = TFADecode.TFADecode()
+
+button_press_time = time.ticks_ms()
+
+
+def button_handler(pin):
+    global button_press_time
+    now = time.ticks_ms()
+    if time.ticks_diff(now, button_press_time) > 400:
+        button_press_time = now
+        micropython.schedule(tfa_display.next_page, ())
+
+
+pButton.irq(trigger=machine.Pin.IRQ_FALLING, handler=button_handler)
+
 
 # loop-control
 loop = True  # if True, re-arm CC1101 after if received packet
@@ -174,7 +192,7 @@ else:
 
 
 def display_update_cb(args):
-    tfa_display.update(*args)
+    tfa_display.redraw()
 
 
 def process(data_from_isr):
@@ -185,6 +203,7 @@ def process(data_from_isr):
     global last_time_package_received
 
     last_time_package_received = time.time()
+    localtime_str = '{0}-{1:02d}-{2:02d}T{3:02d}:{4:02d}:{5:02d}'.format(*time.localtime())
 
     data_bytes_bin = ''.join(['{:08b}'.format(b)
                              for b in data_from_isr]).encode()
@@ -220,8 +239,9 @@ def process(data_from_isr):
                                   })
 
         # schedule display update (can run in background while MQTT messages are processed)
-        micropython.schedule(
-            display_update_cb, (tfa.data_dict, tfa._rtc.datetime(), wifi_rssi, cc1101_rssi))
+        tfa_display.update_values(
+            wifi_rssi=wifi_rssi, cc1101_rssi=cc1101_rssi, **tfa.data_dict)
+        micropython.schedule(display_update_cb, ())
 
         if wifi_rssi and client:
             if tfa.is_weather_data():
@@ -232,7 +252,8 @@ def process(data_from_isr):
 
     else:
         # TODO: if reoccuring, adjust baudrate or carrier frequency in case it drifted too much
-        RESULT_json = json.dumps({'raw': f'{data_bytes_bin}',
+        RESULT_json = json.dumps(
+            {'raw': f'{data_bytes_bin}',
                                   'maxdecode': len(data_bin),
                                   })
 
@@ -246,7 +267,7 @@ def process(data_from_isr):
         except OSError:
             pass
 
-        STATE_json = json.dumps({'Time': '{0}-{1:02d}-{2:02d}T{3:02d}:{4:02d}:{5:02d}'.format(*time.localtime()),
+        STATE_json = json.dumps({'Time': localtime_str,
                                  "Wifi": {"SSId": WIFI_ESSID,
                                           "Channel": wifi_channel,
                                           "RSSI": wifi_rssi},

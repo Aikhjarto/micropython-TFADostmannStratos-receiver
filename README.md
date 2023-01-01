@@ -13,6 +13,8 @@ Precompile libraries
 ```sh
 mkdir -p lib
 3rdParty/micropython-font-to-py/font_to_py.py -x /usr/share/fonts/truetype/NotoSans-Condensed.ttf   15 lib/NotoSansCondensed15.py
+3rdParty/micropython-font-to-py/font_to_py.py -x /usr/share/fonts/truetype/NotoSans-Condensed.ttf   18 lib/NotoSansCondensed18.py
+3rdParty/micropython-font-to-py/font_to_py.py -x /usr/share/fonts/truetype/NotoSans-Condensed.ttf   28 lib/NotoSansCondensed18.py
 
 find lib -name "*.py" -exec mpy-cross {} \;
 
