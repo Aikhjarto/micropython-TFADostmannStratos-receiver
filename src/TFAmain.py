@@ -225,7 +225,8 @@ def process(data_from_isr):
 
         if wifi_rssi and client:
             if tfa.is_weather_data():
-                client.publish(f'tele/{MQTT_TOPIC}/SENSOR', tfa.data_json)
+                client.publish(f'tele/{MQTT_TOPIC}/SENSOR', json.dumps({'Time': localtime_str,
+                                                                        'TFA': tfa.data_dict}))
             elif tfa.is_time_data():
                 client.publish(f'tele/{MQTT_TOPIC}/DFC', str(tfa.dfc_tuple))
 
