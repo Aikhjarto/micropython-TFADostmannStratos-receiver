@@ -90,7 +90,6 @@ pButton.irq(trigger=machine.Pin.IRQ_FALLING, handler=button_handler)
 
 # loop-control
 loop = True  # if True, re-arm CC1101 after if received packet
-last_time_package_received = time.time()
 
 # state variables
 last_successful_deocde_time_str=""
@@ -110,6 +109,9 @@ SPI_buff = bytearray(65)  # RX FIFO size + 1
 SPI_buff[0] = 0xFF  # read burst read of RXFIFO
 spi_buff_mv = memoryview(SPI_buff)
 
+STATE = {"WiFi":{"SSId": WIFI_ESSID,},
+         'CC1101': CC1101_settings_dict
+        }
 
 def readout(*args):
     """
@@ -158,7 +160,7 @@ def readout(*args):
             if pGDO2.value() == 0:
                 # end of data
                 #print('end of data')
-                micropython.schedule(process, (RXbuff[:RXbuff_idx]))
+                micropython.schedule(process_TFA_data, (RXbuff[:RXbuff_idx]))
                 RXbuff_idx = 2
 
                 if loop:
@@ -199,18 +201,46 @@ def display_update_cb(args):
     tfa_display.redraw()
 
 
-def process(data_from_isr):
+def check_wifi(sta_if):
+    """
+    If connected, returns the RSSI of the wifi connection. 
+    If not connected, schedules reconnect in background and returns None.
+    """
+    wifi_rssi = None
+    if sta_if:
+        if sta_if.isconnected():
+            wifi_rssi = sta_if.status('rssi')
+            STATE["WiFi"]["RSSI"]=wifi_rssi
+            wifi_channel = None
+            try:
+                # it is not on every hardware possible to read-out the channel
+                wifi_channel = sta_if.config('channel')
+            except OSError:
+                pass
+            STATE["WiFi"]["Channel"]=wifi_channel
+        else:
+            # reset WiFi
+            STATE["WiFi"]={"SSId": WIFI_ESSID,}
+            sta_if.active(False)
+            sta_if.active(True)
+            sta_if.connect(WIFI_ESSID, WIFI_PASSWORD)
+    return wifi_rssi
+
+def get_local_time_str():
+    """
+    Return local time as string"""
+    return '{0}-{1:02d}-{2:02d}T{3:02d}:{4:02d}:{5:02d}'.format(*time.localtime())
+
+def process_TFA_data(data_from_isr):
     """
     Callback for end-of-packet
     """
 
-    global last_time_package_received
     global last_time_package_received_time_str
     global last_successful_deocde_time_str
 
-    last_time_package_received = time.time()
-    localtime_str = '{0}-{1:02d}-{2:02d}T{3:02d}:{4:02d}:{5:02d}'.format(*time.localtime())
-    last_time_package_received_time_str = localtime_str
+    localtime_str = get_local_time_str()
+    STATE["last_time_package_received_time"] = localtime_str
 
     data_bytes_bin = ''.join(['{:08b}'.format(b)
                              for b in data_from_isr]).encode()
@@ -218,14 +248,7 @@ def process(data_from_isr):
     print(f'Decoded {len(data_bin)} bits')
 
     # check wifi
-    wifi_rssi = None
-    if sta_if:
-        if sta_if.isconnected():
-            wifi_rssi = sta_if.status('rssi')
-        else:
-            # reset WiFi
-            sta_if.active(False)
-            sta_if.active(True)
+    wifi_rssi = check_wifi(sta_if)
 
     # check CC1101 link quality
     cc1101_rssi = CC1101.getRSSIdBm()
@@ -236,8 +259,7 @@ def process(data_from_isr):
         client.connect()
 
     if len(data_bin) >= 79:
-
-        last_successful_deocde_time_str=localtime_str
+        STATE["last_successful_decode_time"] = localtime_str
 
         # decode data
         tfa.update(data_bin)
@@ -269,22 +291,9 @@ def process(data_from_isr):
     print(f'stat/{MQTT_TOPIC}/RESULT', RESULT_json)
 
     if wifi_rssi and client:
-        wifi_channel = None
-        try:
-            # it is not on every hardware possible to read-out the channel
-            wifi_channel = sta_if.config('channel')
-        except OSError:
-            pass
-
-        STATE_json = json.dumps({'Time': localtime_str,
-                                 "Wifi": {"SSId": WIFI_ESSID,
-                                          "Channel": wifi_channel,
-                                          "RSSI": wifi_rssi},
-                                 'CC1101': CC1101_settings_dict,
-                                 'last_time_package_received_time': last_time_package_received_time_str,
-                                 'last_successful_decode_time': last_successful_deocde_time_str
-                                 })
-
+        client.connect()
+        STATE["Time"] = localtime_str
+        STATE_json = json.dumps(STATE)
         print(f'tele/{MQTT_TOPIC}/STATE', STATE_json)
         client.publish(f'tele/{MQTT_TOPIC}/STATE', STATE_json)
 
@@ -295,6 +304,26 @@ def process(data_from_isr):
     gc.collect()  # free memory after processing
 
 
+def publish_state(timer):
+    # check wifi
+    wifi_rssi = check_wifi(sta_if)
+
+    STATE["Time"] = get_local_time_str()
+
+    # prepare mqtt session
+    if wifi_rssi and client:
+        client.connect()
+        
+        STATE_json = json.dumps(STATE)
+        print(f'tele/{MQTT_TOPIC}/STATE', STATE_json)
+        client.publish(f'tele/{MQTT_TOPIC}/STATE', STATE_json)
+
+        client.disconnect()
+
+state_timer = machine.Timer(1)
+state_timer.init(mode=machine.Timer.PERIODIC, period=60000, callback=publish_state)
+
+
 def watchdog(*args):
     """
     watchdog/heartbeat-thread to clear buffers in case of buffer overflow or set to RX mode
@@ -303,17 +332,16 @@ def watchdog(*args):
     while True:
         if loop:
             state = CC1101._getMRStateMachineState()
+            CC1101_settings_dict['StateMachineState'] = state
 
             if state == 17:  # RX FIFO overflow
                 CC1101._strobe(CC1101.SFRX)
                 RXbuff_idx = 2
 
             if state != 13:  # not in RX state
+                publish_state(None)
                 print(f'CC1101 state: {state}->13')
                 CC1101._setRXState()
-
-            if time.time()-last_time_package_received > 144:
-                print('.', end='')  # heartbeat
 
         time.sleep(5)
 
