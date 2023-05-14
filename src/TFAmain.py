@@ -92,6 +92,10 @@ pButton.irq(trigger=machine.Pin.IRQ_FALLING, handler=button_handler)
 loop = True  # if True, re-arm CC1101 after if received packet
 last_time_package_received = time.time()
 
+# state variables
+last_successful_deocde_time_str=""
+last_time_package_received_time_str=""
+
 # prepare receive buffer to be read to copy data from RXFIFO
 RXbuff = bytearray(CC1101._readSingleByte(CC1101.PKTLEN)+60)
 RXbuff_mv = memoryview(RXbuff)
@@ -201,9 +205,12 @@ def process(data_from_isr):
     """
 
     global last_time_package_received
+    global last_time_package_received_time_str
+    global last_successful_deocde_time_str
 
     last_time_package_received = time.time()
     localtime_str = '{0}-{1:02d}-{2:02d}T{3:02d}:{4:02d}:{5:02d}'.format(*time.localtime())
+    last_time_package_received_time_str = localtime_str
 
     data_bytes_bin = ''.join(['{:08b}'.format(b)
                              for b in data_from_isr]).encode()
@@ -229,6 +236,8 @@ def process(data_from_isr):
         client.connect()
 
     if len(data_bin) >= 79:
+
+        last_successful_deocde_time_str=localtime_str
 
         # decode data
         tfa.update(data_bin)
@@ -272,6 +281,8 @@ def process(data_from_isr):
                                           "Channel": wifi_channel,
                                           "RSSI": wifi_rssi},
                                  'CC1101': CC1101_settings_dict,
+                                 'last_time_package_received_time': last_time_package_received_time_str,
+                                 'last_successful_decode_time': last_successful_deocde_time_str
                                  })
 
         print(f'tele/{MQTT_TOPIC}/STATE', STATE_json)
