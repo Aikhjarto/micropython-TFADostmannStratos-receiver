@@ -1,7 +1,18 @@
 Receiver implementation a TFA Dostmann Stratos 35.1077.54.S2 weather station with 30.3151 thermo/hygro sensor), a 30.3152 rainsensor, and a 30.3153 anemometer for micropython using a CC1101 868 MHz receiver and an SSD1306 128x64px OLED display.
 
 
-Received data is published to an MQTT server using the built-in WiFi if available, tested on ESP32.
+Received data is published to an MQTT server using the built-in WiFi if available, to the following topics
+```
+tele/{MQTT_TOPIC}/SENSOR
+tele/{MQTT_TOPIC}/DFC
+tele/{MQTT_TOPIC}/STATE
+stat/{MQTT_TOPIC}/RESULT
+```
+as JSON object.
+
+* `SENSOR` and `DFC` are published each time weather and time data are received respectivley.
+* `STATE` contains internal like RSSI, and last successfull sensor reads and is publishd every 60 seconds or whenever some important state change happened.
+* `RESULT` contains interals on decoding the bytestream received from  the TFA station. 
 
 ## Upload to Device
 install required tools
