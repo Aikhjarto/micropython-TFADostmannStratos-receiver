@@ -91,9 +91,6 @@ pButton.irq(trigger=machine.Pin.IRQ_FALLING, handler=button_handler)
 # loop-control
 loop = True  # if True, re-arm CC1101 after if received packet
 
-# state variables
-last_successful_deocde_time_str=""
-last_time_package_received_time_str=""
 
 # prepare receive buffer to be read to copy data from RXFIFO
 RXbuff = bytearray(CC1101._readSingleByte(CC1101.PKTLEN)+60)
@@ -235,9 +232,6 @@ def process_TFA_data(data_from_isr):
     """
     Callback for end-of-packet
     """
-
-    global last_time_package_received_time_str
-    global last_successful_deocde_time_str
 
     localtime_str = get_local_time_str()
     STATE["last_time_package_received_time"] = localtime_str
