@@ -1,8 +1,9 @@
 # This file is executed on every boot (including wake-boot from deepsleep)
 #import esp
 #esp.osdebug(None)
-#import webrepl
-#webrepl.start()
+import webrepl
+webrepl.start()
+
 from micropython import const
 
 WIFI_ESSID = const('ESSID')
