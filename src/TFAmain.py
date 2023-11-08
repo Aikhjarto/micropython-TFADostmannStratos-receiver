@@ -1,14 +1,16 @@
 from TFADisplay import TFADisplay
 from boot import *  # get settings
 import time
-from machine import Pin, SoftSPI, SoftI2C
+from machine import Pin, SoftSPI, SoftI2C, UART
 import machine
 from pycc1101 import TICC1101
 import micropython
 import TFADecode
 import json
 import gc
+import uos
 import _thread
+import usyslog
 
 
 # CC1101 Pins
@@ -28,8 +30,24 @@ pMISO = Pin(23, Pin.IN)
 pSDA = Pin(16)
 pSCL = Pin(17)
 
+# UART
+#uart = UART(1, 115200)
+#uart.init(115200, tx=21, rx=22)
+#uos.dupterm(uart,2)
+
 
 pButton = Pin(25, Pin.IN, Pin.PULL_UP)
+
+sta_if = None
+def print_status(*args, **kwargs):
+    print(*args, **kwargs)
+    if sta_if and sta_if.isconnected():
+        # configure syslog 
+        if 'SYSLOG_SERVER' in globals():
+            syslog = usyslog.UDPClient(ip=SYSLOG_SERVER)
+            syslog.info(' '.join(args))
+    # if uart:
+    #    uart.write(' '.joint(args))
 
 
 # CC1101
@@ -133,14 +151,14 @@ def readout(*args):
 
         if (bytes_available & 0b10000000):
             # RXOverflow, reset buffers and revert to idle
-            print('RX FIFO in CC1101 overflow')
+            print_status('RX FIFO in CC1101 overflow')
             CC1101._strobe(CC1101.SFRX)
             RXbuff_idx = 2
             return
         elif bytes_available > 0:
             if (len(spi_buff_mv) < bytes_available+1) or (len(RXbuff_mv) < RXbuff_idx+bytes_available):
                 # buffers full, maybe something was left from a previously aborted transmission
-                print('receive buffer on MCU is full')
+                print_status('receive buffer on MCU is full')
                 CC1101._strobe(CC1101.SIDLE)
                 RXbuff_idx = 2
                 return
@@ -156,7 +174,7 @@ def readout(*args):
         else:
             if pGDO2.value() == 0:
                 # end of data
-                #print('end of data')
+                #print_status('end of data')
                 micropython.schedule(process_TFA_data, (RXbuff[:RXbuff_idx]))
                 RXbuff_idx = 2
 
@@ -239,7 +257,7 @@ def process_TFA_data(data_from_isr):
     data_bytes_bin = ''.join(['{:08b}'.format(b)
                              for b in data_from_isr]).encode()
     decode_state, data_bin = TFADecode.twostate_demodulate(data_bytes_bin)
-    print(f'Decoded {len(data_bin)} bits')
+    print_status(f'Decoded {len(data_bin)} bits')
 
     # check wifi
     wifi_rssi = check_wifi(sta_if)
@@ -282,13 +300,13 @@ def process_TFA_data(data_from_isr):
                                   'maxdecode': len(data_bin),
                                   })
 
-    print(f'stat/{MQTT_TOPIC}/RESULT', RESULT_json)
+    print_status(f'stat/{MQTT_TOPIC}/RESULT', RESULT_json)
 
     if wifi_rssi and client:
         client.connect()
         STATE["Time"] = localtime_str
         STATE_json = json.dumps(STATE)
-        print(f'tele/{MQTT_TOPIC}/STATE', STATE_json)
+        print_status(f'tele/{MQTT_TOPIC}/STATE', STATE_json)
         client.publish(f'tele/{MQTT_TOPIC}/STATE', STATE_json)
 
         client.publish(f'stat/{MQTT_TOPIC}/RESULT', RESULT_json)
@@ -309,7 +327,7 @@ def publish_state(timer):
         client.connect()
         
         STATE_json = json.dumps(STATE)
-        print(f'tele/{MQTT_TOPIC}/STATE', STATE_json)
+        print_status(f'tele/{MQTT_TOPIC}/STATE', STATE_json)
         client.publish(f'tele/{MQTT_TOPIC}/STATE', STATE_json)
 
         client.disconnect()
@@ -334,7 +352,7 @@ def watchdog(*args):
 
             if state != 13:  # not in RX state
                 publish_state(None)
-                print(f'CC1101 state: {state}->13')
+                print_status(f'CC1101 state: {state}->13')
                 CC1101._setRXState()
 
         time.sleep(5)
