@@ -33,12 +33,36 @@ mpy-cross 3rdParty/pycc1101/pycc1101/pycc1101.py -o lib/pycc1101.mpy
 mpy-cross 3rdParty/micropython-font-to-py/writer/writer.py -o lib/writer.mpy
 mpy-cross 3rdParty/micropython-lib/micropython/umqtt.simple/umqtt/simple.py -o lib/umqttsimple.mpy
 mpy-cross 3rdParty/micropython-lib/micropython/drivers/display/ssd1306/ssd1306.py -o lib/ssd1306.mpy
+mpy-cross 3rdParty/3rdParty/usyslog/usyslog.py- -o lib/usyslog.mpy
 mpy-cross 3rdParty/crc8/crc8.py -o lib/crc8.mpy
 mpy-cross 3rdParty/crc/crc.py -o lib/crc.mpy
 ```
 
-Upload everything to microcontroller
+Upload everything to microcontroller using `ampy`
 ```sh
-find lib -name "*.mpy" -exec ampy -p /dev/ttyUSB0 put {} {} \;
-find src -name "*TFA*.py" -print0 | xargs -0 -L1 sh -c 'ampy -p /dev/ttyUSB0 put "$0" "$(basename "$0")"'
+PORT=/dev/ttyACM0
+find lib -name "*.mpy" -exec ampy -p ${PORT} put {} {} \;
+find src -name "*TFA*.py" -print0 | xargs -0 -L1 sh -c 'ampy -p ${PORT} put "$0" "$(basename "$0")"'
 ```
+
+or everything to microcontroller using `pyboard`
+```sh
+PORT=/dev/ttyACM0
+find lib -name "*.mpy" -exec  ~/src/micropython/tools/pyboard.py --device ${PORT} -f cp {} :{} \;
+```
+
+Per default, only one additional REPL is allowed in the ESP32 port of micropython.
+To have both, webrepl and REPL over secondary UART enable, you have to compile micropython manually after chaning
+```c
+#define MICROPY_PY_OS_DUPTERM (3)
+```
+in `ports/esp32/mpconfigport.h`
+
+Compile then with IDF.py
+```
+. ~/esp/esp-idf/export.sh
+cd ports/esp32
+make
+```
+
+
