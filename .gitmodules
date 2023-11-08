@@ -18,4 +18,4 @@
 	url = https://github.com/MartinScharrer/crccheck.git
 [submodule "3rdParty/usyslog"]
 	path = 3rdParty/usyslog
-	url = https://github.com/kfricke/micropython-usyslog.git
+	url = git@github.com:Aikhjarto/micropython-usyslog.git
