@@ -191,7 +191,11 @@ def ISR_data_available(irq):
 
 pGDO0.irq(ISR_data_available, Pin.IRQ_RISING, 2)
 
-
+# set hostname prior any network access to get DHCP request right
+if 'HOSTNAME' in globals():
+    import network
+    network.hostname(HOSTNAME)
+    
 # configure wifi
 if 'WIFI_ESSID' in globals():
     # start WiFi
