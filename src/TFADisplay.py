@@ -5,12 +5,16 @@ import time
 import NotoSansCondensed15 as font_small
 import NotoSansCondensed18 as font
 import NotoSansCondensed28 as font_large
-
+import sys
 
 class TFADisplay(SSD1306_I2C):
     def __init__(self, *args, **kwargs):
-        SSD1306_I2C.__init__(self, *args, **kwargs)
-
+        try:
+            SSD1306_I2C.__init__(self, *args, **kwargs)
+        except OSError as e:
+            # don't crash on I2C error, e.g. loose cable
+            sys.print_exception(e)
+        
         self._page = 0
         self._data = {}
         self._wri = Writer(self, font)
@@ -20,6 +24,13 @@ class TFADisplay(SSD1306_I2C):
         self.fill(0)
         self.text('Waiting for data', 0, 0, 1)
         self.show()
+        
+    def show(self, *args, **kwargs):
+        # wrapper for 'show' to not crash in case of I2C bus error, e.g. loose cable
+        try:
+            super().show(*args, **kwargs)
+        except OSError as e:
+            sys.print_exception(e)
 
     def text(self, string, x, y, col):
         # In case a previous test has altered this
