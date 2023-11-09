@@ -63,18 +63,26 @@ class TFADisplay(SSD1306_I2C):
                 f'{datetime_tuple[0]:04d}-{datetime_tuple[1]:02d}-{datetime_tuple[2]:02d} {datetime_tuple[3]:02d}:{datetime_tuple[4]:02d}:{datetime_tuple[5]:02d}', 0, 2*font.height(), 1)
             self.text_small(
                 f'{self._data.get("wifi_rssi",math.nan)}dBm {self._data.get("cc1101_rssi",math.nan)}dBm', 0, 64-font_small.height(), 1)
-        else:
+        elif page==1:
             self.text_large(
                 f'{self._data.get("temperature",math.nan):.1f}C {self._data.get("humidity",math.nan):.0f}%', 0, 0, 1)
             self.text_small(
                 f'{datetime_tuple[0]:04d}-{datetime_tuple[1]:02d}-{datetime_tuple[2]:02d} {datetime_tuple[3]:02d}:{datetime_tuple[4]:02d}:{datetime_tuple[5]:02d}', 0, font_large.height(), 1)
             self.text_small(f'{self._data.get("battery_low",math.nan)}',
                             0, font_large.height() + font_small.height(), 1)
+        elif page==2:
+            self.text_small(f'{datetime_tuple[0]:04d}-{datetime_tuple[1]:02d}-{datetime_tuple[2]:02d} {datetime_tuple[3]:02d}:{datetime_tuple[4]:02d}:{datetime_tuple[5]:02d}',
+                             0, 0, 1)
+            STATE = self._data.get("STATE", {})
+            self.text_small(STATE.get("last_time_package_received_time",""), 0, font_small.height(), 1)
+            self.text_small(STATE.get("last_successful_decode_time",""), 0, 2*font_small.height(), 1)
+        else:
+            self.text_small(f"Page number {page} is not defined.", 0, 0, 1)
 
         self.show()
-
+        
     def next_page(self, *args):
-        self._page = (self._page + 1) % 2
+        self._page = (self._page + 1) % 3
         self.redraw()
 
     def redraw(self):
