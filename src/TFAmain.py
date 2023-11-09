@@ -1,5 +1,4 @@
 from TFADisplay import TFADisplay
-from boot import *  # get settings
 import time
 from machine import Pin, SoftSPI, SoftI2C, UART
 import machine
@@ -11,6 +10,7 @@ import gc
 import uos
 import _thread
 import usyslog
+import TFAsettings
 
 
 # CC1101 Pins
@@ -38,14 +38,11 @@ pSCL = Pin(17)
 
 pButton = Pin(25, Pin.IN, Pin.PULL_UP)
 
-sta_if = None
+syslog = None
 def print_status(*args, **kwargs):
     print(*args, **kwargs)
-    if sta_if and sta_if.isconnected():
-        # configure syslog 
-        if 'SYSLOG_SERVER' in globals():
-            syslog = usyslog.UDPClient(ip=SYSLOG_SERVER)
-            syslog.info(' '.join(args))
+    if syslog:
+        syslog.info(' '.join(args))
     # if uart:
     #    uart.write(' '.joint(args))
 
@@ -124,9 +121,13 @@ SPI_buff = bytearray(65)  # RX FIFO size + 1
 SPI_buff[0] = 0xFF  # read burst read of RXFIFO
 spi_buff_mv = memoryview(SPI_buff)
 
-STATE = {"WiFi":{"SSId": WIFI_ESSID,},
+STATE = {"WiFi":{},
          'CC1101': CC1101_settings_dict
         }
+if hasattr(TFAsettings,'WIFI_ESSID'):
+    STATE["WiFi"]["SSId"]=TFAsettings.WIFI_ESSID
+    
+tfa_display.update_values(STATE=STATE)
 
 def readout(*args):
     """
@@ -192,26 +193,26 @@ def ISR_data_available(irq):
 pGDO0.irq(ISR_data_available, Pin.IRQ_RISING, 2)
 
 # set hostname prior any network access to get DHCP request right
-if 'HOSTNAME' in globals():
+if hasattr(TFAsettings,'HOSTNAME'):
     import network
-    network.hostname(HOSTNAME)
+    network.hostname(TFAsettings.HOSTNAME)
     
 # configure wifi
-if 'WIFI_ESSID' in globals():
+if hasattr(TFAsettings,'WIFI_ESSID') and hasattr(TFAsettings,'WIFI_PASSWORD'):
     # start WiFi
     import network
     sta_if = network.WLAN(network.STA_IF)
     sta_if.active(False)  # deactivate in case it was already active
     sta_if.active(True)
-    sta_if.connect(WIFI_ESSID, WIFI_PASSWORD)
+    sta_if.connect(TFAsettings.WIFI_ESSID, TFAsettings.WIFI_PASSWORD)
 else:
     sta_if = None
 
 
 # configure MQTT client
-if 'MQTT_CLIENTID' in globals():
+if hasattr(TFAsettings,'MQTT_CLIENTID') and hasattr(TFAsettings,'MQTT_SERVER'):
     from umqttsimple import MQTTClient
-    client = MQTTClient(MQTT_CLIENTID, MQTT_SERVER)
+    client = MQTTClient(TFAsettings.MQTT_CLIENTID, TFAsettings.MQTT_SERVER)
 else:
     client = None
 
@@ -237,12 +238,22 @@ def check_wifi(sta_if):
             except OSError:
                 pass
             STATE["WiFi"]["Channel"]=wifi_channel
+            
+            global syslog
+            if hasattr(TFAsettings,'SYSLOG_SERVER') and syslog is None:
+                print('connecting to syslog')
+                syslog = usyslog.UDPClient(ip=TFAsettings.SYSLOG_SERVER)
+                print_status(str(syslog))
         else:
+            if syslog:
+                syslog.close()
+            syslog = None
+            
             # reset WiFi
-            STATE["WiFi"]={"SSId": WIFI_ESSID,}
+            STATE["WiFi"]={"SSId": TFAsettings.WIFI_ESSID,}
             sta_if.active(False)
             sta_if.active(True)
-            sta_if.connect(WIFI_ESSID, WIFI_PASSWORD)
+            sta_if.connect(TFAsettings.WIFI_ESSID, TFAsettings.WIFI_PASSWORD)
     return wifi_rssi
 
 def get_local_time_str():
@@ -254,7 +265,8 @@ def process_TFA_data(data_from_isr):
     """
     Callback for end-of-packet
     """
-
+    
+    
     localtime_str = get_local_time_str()
     STATE["last_time_package_received_time"] = localtime_str
 
@@ -288,14 +300,21 @@ def process_TFA_data(data_from_isr):
         # schedule display update (can run in background while MQTT messages are processed)
         tfa_display.update_values(
             wifi_rssi=wifi_rssi, cc1101_rssi=cc1101_rssi, **tfa.data_dict)
-        micropython.schedule(display_update_cb, ())
+        micropython.schedule(display_update_cb, ())	
 
-        if wifi_rssi and client:
-            if tfa.is_weather_data():
-                client.publish(f'tele/{MQTT_TOPIC}/SENSOR', json.dumps({'Time': localtime_str,
-                                                                        'TFA': tfa.data_dict}))
-            elif tfa.is_time_data():
-                client.publish(f'tele/{MQTT_TOPIC}/DFC', str(tfa.dfc_tuple))
+        if tfa.is_weather_data():
+            msg = json.dumps({'Time': localtime_str,
+                              'TFA': tfa.data_dict})
+            topic = f'tele/{TFAsettings.MQTT_TOPIC}/SENSOR'
+            if wifi_rssi and client:
+                client.publish(topic, msg)
+            #print_status(topic, msg)
+        elif tfa.is_time_data():
+            msg = str(tfa.dfc_tuple)
+            topic = f'tele/{TFAsettings.MQTT_TOPIC}/DFC'
+            if wifi_rssi and client:
+                client.publish(topic, msg)
+            #print_status(topic, msg)
 
     else:
         # TODO: if reoccuring, adjust baudrate or carrier frequency in case it drifted too much
@@ -304,16 +323,16 @@ def process_TFA_data(data_from_isr):
                                   'maxdecode': len(data_bin),
                                   })
 
-    print_status(f'stat/{MQTT_TOPIC}/RESULT', RESULT_json)
+    print_status(f'stat/{TFAsettings.MQTT_TOPIC}/RESULT', RESULT_json)
 
     if wifi_rssi and client:
         client.connect()
         STATE["Time"] = localtime_str
         STATE_json = json.dumps(STATE)
-        print_status(f'tele/{MQTT_TOPIC}/STATE', STATE_json)
-        client.publish(f'tele/{MQTT_TOPIC}/STATE', STATE_json)
+        print_status(f'tele/{TFAsettings.MQTT_TOPIC}/STATE', STATE_json)
+        client.publish(f'tele/{TFAsettings.MQTT_TOPIC}/STATE', STATE_json)
 
-        client.publish(f'stat/{MQTT_TOPIC}/RESULT', RESULT_json)
+        client.publish(f'stat/{TFAsettings.MQTT_TOPIC}/RESULT', RESULT_json)
 
         client.disconnect()
 
@@ -331,8 +350,8 @@ def publish_state(timer):
         client.connect()
         
         STATE_json = json.dumps(STATE)
-        print_status(f'tele/{MQTT_TOPIC}/STATE', STATE_json)
-        client.publish(f'tele/{MQTT_TOPIC}/STATE', STATE_json)
+        print_status(f'tele/{TFAsettings.MQTT_TOPIC}/STATE', STATE_json)
+        client.publish(f'tele/{TFAsettings.MQTT_TOPIC}/STATE', STATE_json)
 
         client.disconnect()
 
@@ -363,3 +382,4 @@ def watchdog(*args):
 
 
 watchdog_thread = _thread.start_new_thread(watchdog, ())
+
