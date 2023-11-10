@@ -108,8 +108,7 @@ class TFADecode:
         self.whid = self._bits[7:11]
         self.ident = self._bits[11:19]
         self.flag = self._bits[19]
-        print(
-            f'Metadata:flag {self.flag}, whid: {self.whid}, ident: {bits2int(self.ident)}')
+        #print(f'Metadata:flag {self.flag}, whid: {self.whid}, ident: {bits2int(self.ident)}')
 
         self._crc.update(self._bytes)
 
@@ -136,7 +135,7 @@ class TFADecode:
             second = bits2int(bits[40:43])*10+bits2int(bits[43:47])
             self.dfc_tuple = (year, month, day, 0, hour, minute, second, 0)
             self._rtc.datetime(self.dfc_tuple)
-            print(self.dfc_tuple)
+            # print(self.dfc_tuple)
         elif self.is_weather_data():
             # got weather-data
             self.data_dict['temperature'] = bits2int(bits[21:31])*0.1 - 40
@@ -144,7 +143,7 @@ class TFADecode:
             self.data_dict['windspeed'] = bits2int(bits[39:47])/3
             self.data_dict['windgust'] = bits2int(bits[47:55])/3
             self.data_dict['rain'] = bits2int(bits[55:71])/30
-            print(self.data_dict)
+            # print(self.data_dict)
         else:
             raise RuntimeError(
                 f'neither time nor weather data in {[int(b) for b in bits]}')
@@ -161,3 +160,4 @@ if __name__ == '__main__':
 
     tfa = TFA()
     tfa.update(val)
+

@@ -31,21 +31,25 @@ pSDA = Pin(16)
 pSCL = Pin(17)
 
 # UART
-#uart = UART(1, 115200)
-#uart.init(115200, tx=21, rx=22)
+uart = UART(1, 115200)
+uart.init(115200, tx=21, rx=22)
 #uos.dupterm(uart,2)
 
 
 pButton = Pin(25, Pin.IN, Pin.PULL_UP)
 
 syslog = None
+repl_print = False
 def print_status(*args, **kwargs):
-    print(*args, **kwargs)
+    if repl_print:
+        print(*args, **kwargs)
     if syslog:
         syslog.info(' '.join(args))
-    # if uart:
-    #    uart.write(' '.joint(args))
+    if uart:
+       uart.write(' '.join(args))
+       uart.write('\r\n')
 
+print_status('booting')
 
 # CC1101
 pPower.on()
@@ -133,7 +137,7 @@ def readout(*args):
     """
     Readout of rx fifo of CC1101.
     """
-    global spi_buff_mv, RXbuff_mv, RXbuff_idx
+    global RXbuff_idx
 
     while True:
         # Get length byte in packet safely according to errata https://www.ti.com/lit/er/swrz020e/swrz020e.pdf
@@ -273,7 +277,7 @@ def process_TFA_data(data_from_isr):
     data_bytes_bin = ''.join(['{:08b}'.format(b)
                              for b in data_from_isr]).encode()
     decode_state, data_bin = TFADecode.twostate_demodulate(data_bytes_bin)
-    print_status(f'Decoded {len(data_bin)} bits')
+    #print_status(f'Decoded {len(data_bin)} bits')
 
     # check wifi
     wifi_rssi = check_wifi(sta_if)
@@ -293,6 +297,7 @@ def process_TFA_data(data_from_isr):
         tfa.update(data_bin)
 
         RESULT_json = json.dumps({'raw_int': str(tfa.data_raw),
+                                  'maxdecode': len(data_bin),
                                   'isweather': tfa.is_weather_data(),
                                   'istime': tfa.is_time_data(),
                                   })
@@ -300,7 +305,8 @@ def process_TFA_data(data_from_isr):
         # schedule display update (can run in background while MQTT messages are processed)
         tfa_display.update_values(
             wifi_rssi=wifi_rssi, cc1101_rssi=cc1101_rssi, **tfa.data_dict)
-        micropython.schedule(display_update_cb, ())	
+        #micropython.schedule(display_update_cb, ())
+        #tfa_display.redraw()
 
         if tfa.is_weather_data():
             msg = json.dumps({'Time': localtime_str,
@@ -308,18 +314,17 @@ def process_TFA_data(data_from_isr):
             topic = f'tele/{TFAsettings.MQTT_TOPIC}/SENSOR'
             if wifi_rssi and client:
                 client.publish(topic, msg)
-            #print_status(topic, msg)
+            print_status(topic, msg)
         elif tfa.is_time_data():
             msg = str(tfa.dfc_tuple)
             topic = f'tele/{TFAsettings.MQTT_TOPIC}/DFC'
             if wifi_rssi and client:
                 client.publish(topic, msg)
-            #print_status(topic, msg)
+            print_status(topic, msg)
 
     else:
         # TODO: if reoccuring, adjust baudrate or carrier frequency in case it drifted too much
-        RESULT_json = json.dumps(
-            {'raw': f'{data_bytes_bin}',
+        RESULT_json = json.dumps({'raw': f'{data_bytes_bin}',
                                   'maxdecode': len(data_bin),
                                   })
 
@@ -333,7 +338,7 @@ def process_TFA_data(data_from_isr):
         client.publish(f'tele/{TFAsettings.MQTT_TOPIC}/STATE', STATE_json)
 
         client.publish(f'stat/{TFAsettings.MQTT_TOPIC}/RESULT', RESULT_json)
-
+        
         client.disconnect()
 
     gc.collect()  # free memory after processing
@@ -365,6 +370,7 @@ def watchdog(*args):
     """
     global RXbuff_idx
     while True:
+        check_wifi(sta_if)
         if loop:
             state = CC1101._getMRStateMachineState()
             CC1101_settings_dict['StateMachineState'] = state
@@ -383,3 +389,4 @@ def watchdog(*args):
 
 watchdog_thread = _thread.start_new_thread(watchdog, ())
 
+print_status('booting done')
