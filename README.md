@@ -40,6 +40,12 @@ mpy-cross 3rdParty/crc8/crc8.py -o lib/crc8.mpy
 mpy-cross 3rdParty/crc/crc.py -o lib/crc.mpy
 ```
 
+Settings (WiFi, MQTT, syslog) live in `src/TFAsettings.py`, which is not tracked by git.
+Create it from the template and fill in your values:
+```sh
+cp src/TFAsettings.example.py src/TFAsettings.py
+```
+
 Upload everything to microcontroller using `ampy`
 ```sh
 PORT=/dev/ttyACM0
