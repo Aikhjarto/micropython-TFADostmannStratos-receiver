@@ -1,5 +1,7 @@
 Receiver implementation a TFA Dostmann Stratos 35.1077.54.S2 weather station with 30.3151 thermo/hygro sensor), a 30.3152 rainsensor, and a 30.3153 anemometer for micropython using a CC1101 868 MHz receiver and an SSD1306 128x64px OLED display.
 
+https://github.com/RFD-FHEM/RFFHEM/blob/master/FHEM/lib/SD_ProtocolData.pm#L3218
+https://forum.fhem.de/index.php/topic,119335.msg1221926.html#msg1221926
 
 Received data is published to an MQTT server using the built-in WiFi if available, to the following topics
 ```

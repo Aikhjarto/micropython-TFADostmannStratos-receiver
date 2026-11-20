@@ -54,32 +54,50 @@ class TFADisplay(SSD1306_I2C):
     def draw_page(self, page):
         self.fill(0)
         datetime_tuple = time.localtime()
+        STATE = self._data.get("STATE", {})
         if page == 0:
             self.text(
                 f'{self._data.get("temperature",math.nan):.1f}C {self._data.get("rain",math.nan):.1f}mm', 0, 0, 1)
             self.text(f'{self._data.get("humidity",math.nan):.0f}% {self._data.get("windspeed",math.nan):0.1f}-{self._data.get("windgust",math.nan):0.1f}m/s', 0, font.height(), 1)
 
+            #self.text_small(
+            #    f'{datetime_tuple[0]:04d}-{datetime_tuple[1]:02d}-{datetime_tuple[2]:02d} {datetime_tuple[3]:02d}:{datetime_tuple[4]:02d}:{datetime_tuple[5]:02d}', 0, 2*font.height(), 1)
+            self.text_small(STATE.get("last_successful_decode_time",""), 0, 2*font.height(), 1)
             self.text_small(
-                f'{datetime_tuple[0]:04d}-{datetime_tuple[1]:02d}-{datetime_tuple[2]:02d} {datetime_tuple[3]:02d}:{datetime_tuple[4]:02d}:{datetime_tuple[5]:02d}', 0, 2*font.height(), 1)
-            self.text_small(
-                f'{self._data.get("wifi_rssi",math.nan)}dBm {self._data.get("cc1101_rssi",math.nan)}dBm', 0, 64-font_small.height(), 1)
+                f'W{self._data.get("wifi_rssi",math.nan)}dBm C{self._data.get("cc1101_rssi",math.nan)}dBm', 0, 64-font_small.height(), 1)
         elif page==1:
             self.text_large(
                 f'{self._data.get("temperature",math.nan):.1f}C {self._data.get("humidity",math.nan):.0f}%', 0, 0, 1)
-            self.text_small(
-                f'{datetime_tuple[0]:04d}-{datetime_tuple[1]:02d}-{datetime_tuple[2]:02d} {datetime_tuple[3]:02d}:{datetime_tuple[4]:02d}:{datetime_tuple[5]:02d}', 0, font_large.height(), 1)
-            self.text_small(f'{self._data.get("battery_low",math.nan)}',
-                            0, font_large.height() + font_small.height(), 1)
+            #self.text_small(
+            #    f'{datetime_tuple[0]:04d}-{datetime_tuple[1]:02d}-{datetime_tuple[2]:02d} {datetime_tuple[3]:02d}:{datetime_tuple[4]:02d}:{datetime_tuple[5]:02d}', 0, font_large.height(), 1)
+            self.text_small(STATE.get("last_successful_decode_time",""), 0, font_large.height(), 1)
+            bat_state = self._data.get("battery_low",math.nan)
+            if bat_state is True:
+                self.draw_bat_full(0, font_large.height() + font_small.height())
+            if bat_state is False:
+                self.draw_bat(0, font_large.height() + font_small.height())
+                
         elif page==2:
+            self.text_small("Now/recv/decode", 0, 0, 1)
             self.text_small(f'{datetime_tuple[0]:04d}-{datetime_tuple[1]:02d}-{datetime_tuple[2]:02d} {datetime_tuple[3]:02d}:{datetime_tuple[4]:02d}:{datetime_tuple[5]:02d}',
-                             0, 0, 1)
-            STATE = self._data.get("STATE", {})
-            self.text_small(STATE.get("last_time_package_received_time",""), 0, font_small.height(), 1)
-            self.text_small(STATE.get("last_successful_decode_time",""), 0, 2*font_small.height(), 1)
+                             0, font_small.height(), 1)
+            self.text_small(STATE.get("last_time_package_received_time",""), 0, 2*font_small.height(), 1)
+            self.text_small(STATE.get("last_successful_decode_time",""), 0, 3*font_small.height(), 1)
+            
         else:
             self.text_small(f"Page number {page} is not defined.", 0, 0, 1)
 
         self.show()
+        
+    def draw_bat(self, x, y, col=1):
+        """draw a small empty-battery-symbol at coordinate x/y with color col"""
+        self.line(x+1, y, x+3, y, col)
+        self.rect(x, y+1, 5, 8, col)
+    
+    def draw_bat_full(self, x, y, col):
+        """draw a small full-battery-symbol at coordinate x/y with color col"""
+        self.draw_bat(x, y, col)
+        self.fill_rect(x+1, y+1, 4, 7, col)
         
     def next_page(self, *args):
         self._page = (self._page + 1) % 3

@@ -47,7 +47,7 @@ uart.init(115200, tx=21, rx=22)
 #uos.dupterm(uart,2)
 
 syslog = None
-repl_print = False
+repl_print = False # caution: if enabled, it might cause problems with interactive editors like thonny
 def print_status(*args, **kwargs):
     if repl_print:
         print(*args, **kwargs)
@@ -207,7 +207,6 @@ def process_TFA_data(data_from_isr):
 
     data_bytes_bin = ''.join(['{:08b}'.format(b)
                              for b in data_from_isr]).encode()
-    decode_state, data_bin = TFADecode.twostate_demodulate(data_bytes_bin)
     #print_status(f'Decoded {len(data_bin)} bits')
 
     # check wifi
@@ -221,16 +220,17 @@ def process_TFA_data(data_from_isr):
     if wifi_rssi and client:
         client.connect()
 
-    if len(data_bin) >= 79:
-        STATE["last_successful_decode_time"] = localtime_str
-
-        # decode data
-        tfa.update(data_bin)
+    # decode data
+    tfa.update(data_bytes_bin)
+    if tfa.crcok:
+        STATE["last_successful_decode_time"] = localtime_str        
 
         RESULT_json = json.dumps({'raw_int': str(tfa.data_raw),
-                                  'maxdecode': len(data_bin),
+                                  'raw': f'{data_bytes_bin}',
+                                  'maxdecode': tfa._max_decode,
                                   'isweather': tfa.is_weather_data(),
                                   'istime': tfa.is_time_data(),
+                                  'crcok': tfa.crcok,
                                   })
 
         if tfa.is_weather_data():
@@ -239,22 +239,24 @@ def process_TFA_data(data_from_isr):
             if wifi_rssi and client:
                 client.publish(SENSOR_TOPIC_WEATHER, msg)
             print_status(SENSOR_TOPIC_WEATHER, msg)
+            
+            # schedule display update (can run in background while MQTT messages are processed)
+            tfa_display.update_values(
+                wifi_rssi=wifi_rssi, cc1101_rssi=cc1101_rssi, **tfa.data_dict)
+            micropython.schedule(display_update_cb, ())
+            #tfa_display.redraw()
+            
         elif tfa.is_time_data():
             msg = str(tfa.dfc_tuple)
             if wifi_rssi and client:
                 client.publish(SENSOR_TOPIC_DFC, msg)
             print_status(SENSOR_TOPIC_DFC, msg)
             
-        # schedule display update (can run in background while MQTT messages are processed)
-        tfa_display.update_values(
-            wifi_rssi=wifi_rssi, cc1101_rssi=cc1101_rssi, **tfa.data_dict)
-        micropython.schedule(display_update_cb, ())
-        #tfa_display.redraw()
-        
     else:
         # TODO: if reoccuring, adjust baudrate or carrier frequency in case it drifted too much
         RESULT_json = json.dumps({'raw': f'{data_bytes_bin}',
-                                  'maxdecode': len(data_bin),
+                                  'maxdecode': tfa._max_decode,
+                                  'crcok': tfa.crcok,
                                   })
 
     print_status(RESULT_TOPIC, RESULT_json)
@@ -264,7 +266,6 @@ def process_TFA_data(data_from_isr):
     print_status(STATE_TOPIC, STATE_json)
 
     if wifi_rssi and client:
-        client.connect()
         client.publish(RESULT_TOPIC, RESULT_json)
         client.publish(STATE_TOPIC, STATE_json)
         client.disconnect()
@@ -285,7 +286,7 @@ CC1101.setDefaultValues()
 
 # CC1101 settings
 CC1101.setCarrierFrequency(868)
-CC1101.setCarrierFrequencyHz(868410000)  # my oscillator is a bit to low
+CC1101.setCarrierFrequencyHz(868400000)  # my oscillator is a bit to low
 CC1101.setChannelBandwidth(0, 1)
 CC1101.setModulation('ASK')
 CC1101.setBaud(2052)  # my oscillator is a bit to low

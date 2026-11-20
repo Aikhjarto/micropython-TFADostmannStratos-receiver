@@ -1,1 +1,8 @@
 No working CRC check implemented yet.
+
+Autocalib to account for frequency drifts.
+Right now, values for Carrier Frequency and Baudrate of CC1101 are obtained manually by an auxiliar GNU Radio device as follows:
+* Use Universal Radio Hacker (URH) software + extra device, e.g. USRP or RTL, to get carrier frequency and baud rate of Weatherstation
+* Set CC1101 to transmit data at obtained settings from previous step and use URH to check offset.
+* Tune settings of CC1101 until parameter apper the same on URH (nominal parameter value does not matter and is subject to accuracy of the used hardware for URH)
+
