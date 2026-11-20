@@ -262,9 +262,9 @@ class TFADecode:
             # got weather-data
             self.data_dict['temperature'] = bits2int(bits[21:31])*0.1 - 40
             self.data_dict['humidity'] = bits2int(bits[31:39])
-            self.data_dict['windspeed'] = bits2int(bits[39:47])/3
-            self.data_dict['windgust'] = bits2int(bits[47:55])/3
-            self.data_dict['rain'] = bits2int(bits[55:71])/30
+            self.data_dict['windspeed'] = bits2int(bits[39:47])*0.34  # m/s per count (rtl_433 fineoffset_wh1050)
+            self.data_dict['windgust'] = bits2int(bits[47:55])*0.34
+            self.data_dict['rain'] = bits2int(bits[55:71])*0.3  # mm per count (was /30, 9x too small)
             # print(self.data_dict)
 
 

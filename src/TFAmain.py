@@ -293,7 +293,7 @@ CC1101.setBaud(2052)  # my oscillator is a bit to low
 CC1101.setRXAttenuation(0)
 CC1101.setOptimumASKGainControl()
 CC1101.setPacketMode("PKT_LEN_FIXED")
-CC1101.setPktLen(45)
+CC1101.setPktLen(52)  # 80 bits need up to 400 chips incl. the 16 sync chips: >= 48 bytes (45 cut frames off)
 CC1101.enCRC(False)
 CC1101.enFEC(False)
 CC1101.setSyncMode(2)
