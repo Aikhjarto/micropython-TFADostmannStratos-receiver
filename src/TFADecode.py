@@ -198,7 +198,7 @@ class TFADecode:
                     self._max_decode = i
                 else:
                     # fill up rest of bits
-                    for j in range(i, len(self._bits)):
+                    for j in range(i+1, len(self._bits)):
                         self._bits[j] = False
 
         if self._max_decode < 78:
